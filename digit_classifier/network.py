@@ -177,40 +177,66 @@ def build_network(
         label="input_pixels",
     )
 
-    # ── Output layer: 10 LIF neurons ─────────────────────────────────────────
-    # Each neuron is a pattern detector for one digit class.
-    # They share the same biological parameters — fair competition.
-    output_pop = sim.Population(
-        N_OUTPUT,
-        sim.IF_curr_exp(**LIF_PARAMS),
-        label="digit_detectors",
-    )
+    # ── Output layer: 10 SEPARATE LIF neurons (one per digit class) ─────────────
+    #
+    # Each digit class gets its OWN named Population of exactly 1 LIF neuron.
+    # This makes the architecture explicit in the code:
+    #
+    #   detector_digit_0  ← fires when a "0" is shown
+    #   detector_digit_1  ← fires when a "1" is shown
+    #   ...
+    #   detector_digit_9  ← fires when a "9" is shown
+    #
+    # Why 10 separate populations instead of one Population(10)?
+    #   - Each neuron is a distinct conceptual entity with its own label.
+    #   - Data (spikes, voltage) is extracted per-population without index arithmetic.
+    #   - Matches the neuromorphic design intention: one detector per class.
+    #   - On SpiNNaker, each population maps to a dedicated hardware core.
+    output_pops: list = []
+    exc_projs:   list = []
+    inh_projs:   list = []
 
-    # Record spikes AND membrane voltage for all 10 output neurons
-    output_pop.record(["spikes", "v"])
+    for k in range(N_OUTPUT):
+        # One LIF neuron — the detector for digit class k
+        pop_k = sim.Population(
+            1,
+            sim.IF_curr_exp(**LIF_PARAMS),
+            label=f"detector_digit_{k}",
+        )
+        pop_k.record(["spikes", "v"])
+        output_pops.append(pop_k)
 
-    # ── Synaptic projections ──────────────────────────────────────────────────
-    exc_list, inh_list = build_connection_lists(template_indices)
+        # Build per-digit connection lists.
+        # post index is always 0 (the single neuron in pop_k).
+        t_set = set(template_indices[k])
+        n_k   = len(t_set)
+        non_t = [i for i in range(N_INPUT) if i not in t_set]
 
-    # Excitatory: template pixels strengthen the correct output neuron.
-    exc_proj = sim.Projection(
-        input_pop, output_pop,
-        sim.FromListConnector(exc_list),
-        synapse_type=sim.StaticSynapse(),
-        receptor_type="excitatory",
-    )
+        exc_w    = W_EXC / n_k
+        exc_conn = [(i, 0, exc_w, SYNAPSE_DELAY_MS) for i in t_set]
 
-    # Inhibitory: non-template pixels of digit k suppress output neuron k,
-    # preventing neurons whose templates are subsets of the shown digit
-    # from being accidentally activated.
-    inh_proj = sim.Projection(
-        input_pop, output_pop,
-        sim.FromListConnector(inh_list),
-        synapse_type=sim.StaticSynapse(),
-        receptor_type="inhibitory",
-    )
+        inh_w    = W_INH / (N_INPUT - n_k)
+        inh_conn = [(i, 0, inh_w, SYNAPSE_DELAY_MS) for i in non_t]
 
-    return input_pop, output_pop, exc_proj, inh_proj
+        # Excitatory projection: template pixels → detector k
+        exc_projs.append(sim.Projection(
+            input_pop, pop_k,
+            sim.FromListConnector(exc_conn),
+            synapse_type=sim.StaticSynapse(),
+            receptor_type="excitatory",
+        ))
+
+        # Inhibitory projection: non-template pixels → detector k
+        # Suppresses false activations when a "larger" digit is shown
+        # (e.g. showing "7" must not fire the "1" detector).
+        inh_projs.append(sim.Projection(
+            input_pop, pop_k,
+            sim.FromListConnector(inh_conn),
+            synapse_type=sim.StaticSynapse(),
+            receptor_type="inhibitory",
+        ))
+
+    return input_pop, output_pops, exc_projs, inh_projs
 
 
 # ── Simulation runner ─────────────────────────────────────────────────────────
@@ -251,34 +277,37 @@ def run_classification(
     # 3. Initialise NEST kernel (fresh state for each simulation)
     sim.setup(timestep=TIMESTEP_MS, min_delay=MIN_DELAY_MS)
 
-    # 4. Build the PyNN network
-    _input_pop, output_pop, _exc, _inh = build_network(
+    # 4. Build the PyNN network (returns 10 separate output populations)
+    _input_pop, output_pops, _exc_projs, _inh_projs = build_network(
         spike_times_list, template_indices)
 
     # 5. Run the simulation
     sim.run(sim_time)
 
-    # 6. Extract results from Neo data structure
-    data    = output_pop.get_data()
-    segment = data.segments[0]
-
+    # 6. Extract results — one get_data() call per output population
+    #    Each population has exactly 1 neuron, so indices are always [0].
     spike_counts       : list[int]         = []
     output_spike_trains: list[np.ndarray]  = []
     voltage_values     : list[np.ndarray]  = []
     voltage_times      : np.ndarray        = np.array([])
 
-    for k in range(N_OUTPUT):
-        train = segment.spiketrains[k].magnitude      # np.ndarray, ms
+    for k, pop_k in enumerate(output_pops):
+        data_k  = pop_k.get_data()
+        seg_k   = data_k.segments[0]
+
+        # Spike train of the single neuron in this population
+        train = seg_k.spiketrains[0].magnitude
         spike_counts.append(len(train))
         output_spike_trains.append(train)
 
-    if segment.analogsignals:
-        v_signal = segment.analogsignals[0]
-        voltage_times = v_signal.times.rescale("ms").magnitude
-        for k in range(N_OUTPUT):
-            voltage_values.append(v_signal.magnitude[:, k])
-    else:
-        for _ in range(N_OUTPUT):
+        # Membrane voltage trace
+        if seg_k.analogsignals:
+            v_sig = seg_k.analogsignals[0]
+            if k == 0:
+                voltage_times = v_sig.times.rescale("ms").magnitude
+            # Shape is (n_timepoints, 1) — the single neuron in this population
+            voltage_values.append(v_sig.magnitude[:, 0])
+        else:
             voltage_values.append(np.array([]))
 
     # 7. Clean up NEST state

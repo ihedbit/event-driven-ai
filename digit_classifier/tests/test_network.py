@@ -195,9 +195,12 @@ class TestNetworkWithNEST:
         img = create_digit_image(0)
         spike_times = encode_image_to_spikes(img)
         template_indices = get_all_template_indices()
-        _, output_pop, _, _ = build_network(spike_times, template_indices)
+        _, output_pops, _, _ = build_network(spike_times, template_indices)
 
-        assert output_pop.size == 10
+        assert len(output_pops) == 10, f"Expected 10 populations, got {len(output_pops)}"
+        for k, pop_k in enumerate(output_pops):
+            assert pop_k.size == 1, f"Population {k} has {pop_k.size} neurons, expected 1"
+            assert pop_k.label == f"detector_digit_{k}"
         sim.end()
 
     def test_excitatory_weights_correct_in_nest(self, skip_if_no_nest):
@@ -209,12 +212,13 @@ class TestNetworkWithNEST:
         img = create_digit_image(3)
         spike_times = encode_image_to_spikes(img)
         template_indices = get_all_template_indices()
-        _, _, exc_proj, _ = build_network(spike_times, template_indices)
+        _, _, exc_projs, _ = build_network(spike_times, template_indices)
 
-        conns = exc_proj.get(["weight"], format="list")
-        # All connections should have positive weights
-        for pre, post, w in conns:
-            assert w > 0, f"Non-positive excitatory weight: {w}"
+        assert len(exc_projs) == 10
+        for k, proj_k in enumerate(exc_projs):
+            conns = proj_k.get(["weight"], format="list")
+            for pre, post, w in conns:
+                assert w > 0, f"Digit {k}: non-positive excitatory weight: {w}"
         sim.end()
 
     def test_inhibitory_weights_correct_in_nest(self, skip_if_no_nest):
@@ -226,13 +230,15 @@ class TestNetworkWithNEST:
         img = create_digit_image(3)
         spike_times = encode_image_to_spikes(img)
         template_indices = get_all_template_indices()
-        _, _, _, inh_proj = build_network(spike_times, template_indices)
+        _, _, _, inh_projs = build_network(spike_times, template_indices)
 
-        conns = inh_proj.get(["weight"], format="list")
-        for pre, post, w in conns:
-            assert w > 0, (
-                f"Inhibitory weight should be positive (sign from receptor_type), "
-                f"got {w}")
+        assert len(inh_projs) == 10
+        for k, proj_k in enumerate(inh_projs):
+            conns = proj_k.get(["weight"], format="list")
+            for pre, post, w in conns:
+                assert w > 0, (
+                    f"Digit {k}: inhibitory weight should be positive "
+                    f"(sign from receptor_type), got {w}")
         sim.end()
 
     def test_simulation_runs_without_error(self, skip_if_no_nest):
