@@ -1,0 +1,23 @@
+# ─── Python dependencies for the T-shape SNN detector ────────────────────────
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# NOTE: NEST itself is NOT a pip package.
+#   See the README for NEST installation instructions.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Core SNN framework (talks to NEST, and later to SpiNNaker)
+PyNN>=0.10.0
+
+# Numerical arrays and image manipulation
+numpy>=1.21
+
+# All visualisation plots
+matplotlib>=3.5
+
+# Test runner
+pytest>=7.0
+
+# Optional: cleaner test output
+pytest-verbose-parametrize

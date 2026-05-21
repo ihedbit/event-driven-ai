@@ -1,0 +1,8 @@
+# ─── Python dependencies for the SNN digit classifier ────────────────────────
+# Install: pip install -r requirements.txt
+# NOTE: NEST is NOT a pip package — see README.md for installation.
+
+PyNN>=0.10.0
+numpy>=1.21
+matplotlib>=3.5
+pytest>=7.0
