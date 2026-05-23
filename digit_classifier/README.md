@@ -25,6 +25,24 @@ weights and LIF dynamics.
 
 ---
 
+## Interactive demo
+
+An interactive canvas runs live in the **Cursor IDE** — try the classifier without
+installing NEST.
+
+| Feature | Description |
+|---|---|
+| **Click pixels** | Toggle any of the 400 pixels on/off |
+| **Digit presets** | Buttons 0–9 load the canonical 7-segment template |
+| **Random / Clear** | Load a 25%-density noise image or blank the grid |
+| **Mini 7-segment display** | Predicted digit rendered as a live 7-segment readout |
+| **Activity bar chart** | Peak ΔV for all 10 output neurons with threshold line |
+| **Live stats** | Active pixels, firing count, ΔV for the winner |
+
+Open `digit-classifier.canvas.tsx` from the Cursor canvas panel to launch it.
+
+---
+
 ## Key concepts illustrated
 
 | Concept | Where to look |
@@ -135,6 +153,9 @@ digit_classifier/
     ├── test_network.py          # 12 structure/analytical + 5 NEST tests
     ├── test_classifier.py       # 17 pure-Python WTA logic tests
     └── test_prediction.py       # 39 end-to-end NEST tests
+
+# Cursor IDE canvas (outside project directory, no NEST required)
+~/.cursor/projects/.../canvases/digit-classifier.canvas.tsx
 ```
 
 ---

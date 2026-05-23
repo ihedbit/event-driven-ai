@@ -42,6 +42,23 @@ once and run it on NEST (software), SpiNNaker (neuromorphic chip), or BrainScale
 
 ---
 
+## Interactive demo
+
+An interactive canvas runs live in the **Cursor IDE** — open it beside the chat
+to explore the detector without NEST.
+
+| Feature | Description |
+|---|---|
+| **Click pixels** | Toggle any of the 400 pixels on/off |
+| **Presets** | Load the canonical T-shape, a random-noise image, or a blank canvas |
+| **Template overlay** | T-template positions always visible (darker border) |
+| **LIF voltage trace** | Simulated membrane voltage at 0.5 ms resolution, spike marker included |
+| **Live stats** | T-pixel overlap, estimated peak ΔV, detection threshold, spike time |
+
+Open `t-shape-detector.canvas.tsx` from the Cursor canvas panel to launch it.
+
+---
+
 ## Project layout
 
 ```
@@ -58,6 +75,9 @@ t_shape_detector/
     ├── test_encoder.py          # 18 tests — pure Python, no NEST
     ├── test_network.py          # 13 structure tests + 4 NEST live tests
     └── test_detection.py        # 13 end-to-end NEST integration tests
+
+# Cursor IDE canvas (outside project directory, no NEST required)
+~/.cursor/projects/.../canvases/t-shape-detector.canvas.tsx
 ```
 
 ---
